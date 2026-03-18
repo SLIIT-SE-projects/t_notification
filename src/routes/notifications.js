@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const axios = require('axios');
 const Notification = require('../models/Notification');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -230,6 +230,78 @@ router.get('/my-history', authenticate, async (req, res, next) => {
     res.set('Expires', '0');
 
     res.status(200).json({ notifications: history });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/notifications/system-logs:
+ *   get:
+ *     summary: Get order status change history (Admin only)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of system status logs
+ *       403:
+ *         description: Admin access required
+ */
+router.get('/system-logs', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const logs = await Notification.find({ type: 'status' })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Hydrate logs with order details by calling the Order Service
+    const authHeader = req.headers.authorization;
+    const hydratedLogs = await Promise.all(logs.map(async (log) => {
+      let orderDetails = null;
+      // Extract orderId from the subject string
+      const match = log.subject.match(/Order #([a-f0-9]{24})/i) || log.subject.match(/Order #([a-zA-Z0-9]+)/);
+      if (match && match[1]) {
+        try {
+          const { data } = await axios.get(`${ORDER_SERVICE_URL}/orders/${match[1]}`, {
+            headers: { Authorization: authHeader },
+            timeout: 3000
+          });
+          orderDetails = data.order;
+        } catch (err) {
+          console.warn(`[Hydration Warning] Could not fetch order ${match[1]}: ${err.response?.status} ${err.message}`);
+        }
+      } else {
+        console.warn(`[Hydration Warning] Could not extract orderId from subject: "${log.subject}"`);
+      }
+      return { ...log.toObject(), orderDetails };
+    }));
+
+    const total = await Notification.countDocuments({ type: 'status' });
+
+    res.status(200).json({
+      logs: hydratedLogs,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     next(error);
   }
