@@ -7,6 +7,7 @@ const { authenticate } = require('../middleware/auth');
 const router = express.Router();
 
 const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3002';
+const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:3003';
 
 // Helper functions for mock email printing
 const printHeader = (title) => {
@@ -172,6 +173,20 @@ router.post(
       ];
       if (status.toLowerCase() === 'shipped') {
         bodyChunks.push(`Your premium bedding is on its way to you! Expect it soon.`);
+
+        try {
+          const { data } = await axios.get(`${ORDER_SERVICE_URL}/api/orders/${orderId}/tracking`, { timeout: 3000 });
+          if (data && data.tracking) {
+            bodyChunks.push(`\n--- Logistics Details ---`);
+            if (data.tracking.courier) bodyChunks.push(`Courier: ${data.tracking.courier}`);
+            if (data.tracking.trackingNumber) bodyChunks.push(`Tracking Number: ${data.tracking.trackingNumber}`);
+            if (data.tracking.trackingUrl) bodyChunks.push(`Track your package here: ${data.tracking.trackingUrl}`);
+            if (data.tracking.estimatedDelivery) bodyChunks.push(`Estimated Delivery: ${data.tracking.estimatedDelivery}`);
+          }
+        } catch (err) {
+          console.warn(`[Hydration Warning] Could not fetch logistics data for order ${orderId}: ${err.message}`);
+          // Graceful degradation: fall back to basic text from initial payload
+        }
       }
 
       printToConsole(userEmail, subject, bodyChunks);
