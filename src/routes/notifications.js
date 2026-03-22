@@ -103,16 +103,14 @@ router.post(
       if (items && Array.isArray(items)) {
         for (const item of items) {
           let enrichedName = item.productName || 'Unknown Product';
-          let imageUrlStr = '';
+
 
           if (item.productId) {
             try {
               const { data } = await axios.get(`${PRODUCT_SERVICE_URL}/products/${item.productId}`, { timeout: 3000 });
               if (data && data.product) {
                 enrichedName = data.product.name || enrichedName;
-                if (data.product.imageUrl) {
-                  imageUrlStr = ` [Image: ${data.product.imageUrl}]`;
-                }
+
               }
             } catch (err) {
               console.warn(`[Hydration Warning] Could not fetch product ${item.productId}: ${err.message}`);
@@ -120,7 +118,7 @@ router.post(
             }
           }
 
-          bodyChunks.push(`- ${item.quantity}x ${enrichedName}${imageUrlStr} @ LKR ${item.price}`);
+          bodyChunks.push(`- ${item.quantity}x ${enrichedName} @ LKR ${item.price}`);
         }
       }
 
