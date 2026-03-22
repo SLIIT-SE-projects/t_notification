@@ -1,13 +1,12 @@
 const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
 
 const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Beddings.lk Notification Service API',
+      title: 'ShopEase Notification Service API',
       version: '1.0.0',
-      description: 'API for sending mock email notifications for Beddings.lk',
+      description: 'API for sending mock email notifications for ShopEase',
     },
     servers: [
       {
@@ -21,4 +20,4 @@ const options = {
 
 const swaggerSpec = swaggerJsdoc(options);
 
-module.exports = { swaggerUi, swaggerSpec };
+module.exports = { swaggerSpec };
